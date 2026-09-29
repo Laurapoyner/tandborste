@@ -1,9 +1,22 @@
+import { fileURLToPath } from 'node:url'
+
 export default defineNuxtConfig({
   ssr: false,
   compatibilityDate: '2026-09-29',
   devtools: { enabled: true },
+
+  alias: {
+    // MongoDB's Zstandard compression package is a native Node addon.
+    // Tandtid does not use zstd compression, so on Cloudflare Workers
+    // we resolve the optional package to a small non-native stub.
+    '@mongodb-js/zstd': fileURLToPath(
+      new URL('./server/stubs/mongodb-zstd.ts', import.meta.url)
+    )
+  },
+
   css: ['~/assets/css/main.css'],
   modules: ['@vite-pwa/nuxt'],
+
   app: {
     head: {
       title: 'Tandtid',
@@ -21,12 +34,14 @@ export default defineNuxtConfig({
       ]
     }
   },
+
   runtimeConfig: {
     mongodbUri: '',
     mongodbDbName: 'tandtid',
     parentPin: '',
     public: { appName: 'Tandtid' }
   },
+
   pwa: {
     registerType: 'autoUpdate',
     strategies: 'generateSW',
@@ -64,5 +79,6 @@ export default defineNuxtConfig({
     },
     devOptions: { enabled: false }
   },
+
   typescript: { strict: true }
 })
