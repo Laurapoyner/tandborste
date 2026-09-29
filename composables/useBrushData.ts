@@ -11,7 +11,7 @@ function normalizeSession(input: any): BrushingSession {
 
 export const useBrushData = () => {
   const sessions = useState<BrushingSession[]>('sessions', () => [])
-  const { enqueue, flush } = useSyncQueue()
+  const { enqueue, remove, flush } = useSyncQueue()
 
   const persistChild = (childId: string, list: BrushingSession[]) => {
     if (!import.meta.client) return
@@ -66,6 +66,24 @@ export const useBrushData = () => {
     await flush()
   }
 
+  const deleteSession = async (session: BrushingSession) => {
+    if (!import.meta.client || !session.id) return
+
+    const id = session.id
+
+    let list: BrushingSession[] = []
+    try { list = JSON.parse(localStorage.getItem(localKey(session.childId)) || '[]') } catch {}
+    list = list.filter(s => s.id !== id)
+    persistChild(session.childId, list)
+
+    sessions.value = sessions.value.filter(s => s.id !== id)
+
+    // Fjern evt. ventende oprettelse og kø sletningen til serveren.
+    remove(`session:${id}`)
+    enqueue('session_delete', { id }, `session-delete:${id}`)
+    await flush()
+  }
+
   const periodNow = (): Period | null => {
     const hour = new Date().getHours()
     if (hour >= 5 && hour < 15) return 'morning'
@@ -107,5 +125,5 @@ export const useBrushData = () => {
     return streak
   }
 
-  return { sessions, loadLocal, syncFromServer, saveSession, periodNow, starsFor, completedCount, dayStreak }
+  return { sessions, loadLocal, syncFromServer, saveSession, deleteSession, periodNow, starsFor, completedCount, dayStreak }
 }

@@ -1,4 +1,4 @@
-export type SyncKind = 'session' | 'redemption' | 'config'
+export type SyncKind = 'session' | 'session_delete' | 'redemption' | 'config'
 
 export interface SyncItem {
   id: string
@@ -33,6 +33,12 @@ export const useSyncQueue = () => {
 
     // Config er "seneste værdi vinder". Det undgår en lang kø af gamle indstillinger.
     if (kind === 'config') queue.value = queue.value.filter(item => item.kind !== 'config')
+
+    // Hvis en tandbørstning slettes, må en gammel offline POST ikke oprette den igen senere.
+    if (kind === 'session_delete' && payload?.id) {
+      queue.value = queue.value.filter(item => item.id !== `session:${payload.id}`)
+    }
+
     if (!queue.value.some(item => item.id === id)) {
       queue.value.push({ id, kind, payload, createdAt: new Date().toISOString() })
       persist()
@@ -40,6 +46,7 @@ export const useSyncQueue = () => {
   }
 
   const remove = (id: string) => {
+    hydrate()
     queue.value = queue.value.filter(item => item.id !== id)
     persist()
   }
@@ -54,6 +61,8 @@ export const useSyncQueue = () => {
         try {
           if (item.kind === 'session') {
             await $fetch('/api/sessions', { method: 'POST', body: item.payload })
+          } else if (item.kind === 'session_delete') {
+            await $fetch(`/api/sessions/${encodeURIComponent(String(item.payload.id))}`, { method: 'DELETE' })
           } else if (item.kind === 'redemption') {
             await $fetch('/api/redemptions', { method: 'POST', body: item.payload })
           } else if (item.kind === 'config') {
@@ -89,5 +98,5 @@ export const useSyncQueue = () => {
     }
   }
 
-  return { queue, hydrate, enqueue, flush, pendingCount, syncing, lastSyncAt, isOnline, startNetworkWatcher }
+  return { queue, hydrate, enqueue, remove, flush, pendingCount, syncing, lastSyncAt, isOnline, startNetworkWatcher }
 }

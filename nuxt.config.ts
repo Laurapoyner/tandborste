@@ -9,10 +9,10 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-09-29',
   devtools: { enabled: true },
 
-  // MongoDB Node-driveren indeholder en række valgfrie integrationer.
-  // Tandtid bruger ingen af dem, men Cloudflare/Nitro forsøger ellers
-  // at resolve dem under bundling. Derfor peges de på en tom JS-stub.
+  // MongoDB har valgfrie integrationer, som Tandtid ikke bruger.
+  // De aliases her gør Cloudflare/Nitro-buildet stabilt uden native addons.
   alias: {
+    '@aws-sdk/credential-providers': mongoOptionalStub,
     '@mongodb-js/zstd': mongoOptionalStub,
     'gcp-metadata': mongoOptionalStub,
     'kerberos': mongoOptionalStub,
@@ -45,7 +45,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     mongodbUri: '',
-    mongodbDbName: 'tandtid',
+    // Bevidst tom: brug NUXT_MONGODB_DB_NAME eller databasenavn i URI'en.
+    mongodbDbName: '',
     parentPin: '',
     public: { appName: 'Tandtid' }
   },
@@ -53,12 +54,7 @@ export default defineNuxtConfig({
   pwa: {
     registerType: 'autoUpdate',
     strategies: 'generateSW',
-    includeAssets: [
-      'apple-touch-icon.png',
-      'icon-192.png',
-      'icon-512.png',
-      'icon-maskable-512.png'
-    ],
+    includeAssets: ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'],
     manifest: {
       id: '/',
       name: 'Tandtid',

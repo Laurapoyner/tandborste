@@ -3,12 +3,13 @@ definePageMeta({middleware:'parent'})
 import type { Redemption } from '~/types'
 
 const {children,rewards,settings}=useTandtidConfig()
-const {sessions,loadLocal,starsFor,dayStreak,completedCount}=useBrushData()
+const {sessions,loadLocal,starsFor,dayStreak,completedCount,deleteSession}=useBrushData()
 const ledger=useRewardsLedger()
 
 const selected=ref('aya')
 const activeTab=ref<'overview'|'history'|'rewards'|'settings'>('overview')
 const newReward=reactive({title:'',emoji:'🎁',cost:100})
+const deletingSessionId=ref<string|null>(null)
 const days=[['monday','Mandag'],['tuesday','Tirsdag'],['wednesday','Onsdag'],['thursday','Torsdag'],['friday','Fredag'],['saturday','Lørdag'],['sunday','Søndag']] as const
 
 onMounted(()=>{
@@ -36,6 +37,21 @@ function formatDateTime(value:string){
   return new Intl.DateTimeFormat('da-DK',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value))
 }
 function childName(id:string){return children.find(c=>c.id===id)?.name || id}
+
+async function removeBrushing(session:any){
+  if(!session?.id)return
+  const period=session.period==='morning'?'morgen':'aften'
+  const name=selectedChild.value?.name || 'barnet'
+  const ok=confirm(`Slet ${name}s tandbørstning fra ${session.date} (${period})?\n\nStjerner og streak bliver beregnet igen, og tandbørstningen kan derefter laves på ny.`)
+  if(!ok)return
+
+  deletingSessionId.value=session.id
+  try{
+    await deleteSession(session)
+  }finally{
+    deletingSessionId.value=null
+  }
+}
 function testLink(period:'morning'|'evening', adult=false, full=false){
   return `/child/${selected.value}/brush?period=${period}&test=1${full?'&full=1':'&seconds=10'}${adult?'&adult=1':''}`
 }
@@ -114,6 +130,16 @@ function testLink(period:'morning'|'evening', adult=false, full=false){
           <div class="history-card-top"><strong>{{s.period==='morning'?'☀️ Morgen':'🌙 Aften'}}</strong><span class="pill" :class="statusClass(s.status)">{{statusText(s.status)}}</span></div>
           <div class="history-details">
             <span>📅 {{s.date}}</span><span>⏱ {{s.actualSeconds}} / {{s.requiredSeconds}} sek.</span><span>👨‍👩‍👧 {{s.approvedBy || (s.adultRequired?'Ikke godkendt':'Ikke påkrævet')}}</span>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px">
+            <button
+              class="btn btn-danger btn-small"
+              type="button"
+              :disabled="deletingSessionId===s.id"
+              @click="removeBrushing(s)"
+            >
+              {{ deletingSessionId===s.id ? 'Sletter…' : '🗑 Slet tandbørstning' }}
+            </button>
           </div>
         </article>
       </div>

@@ -11,11 +11,16 @@ dist/
 .env
 .env.*
 !.env.example
+.dev.vars
+.dev.vars.*
 
 # Cloudflare / Wrangler
 .wrangler/
-.dev.vars
-.dev.vars.*
+
+# Visual Studio / editors
+.vs/
+.vscode/
+.idea/
 
 # Logs
 npm-debug.log*
@@ -24,14 +29,10 @@ yarn-error.log*
 pnpm-debug.log*
 *.log
 
-# OS / editor
+# OS
 .DS_Store
 Thumbs.db
-.vscode/
-.idea/
 
 # Temporary files
 *.tmp
 *.temp
-
-.vs/

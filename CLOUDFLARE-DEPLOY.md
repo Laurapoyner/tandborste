@@ -1,68 +1,39 @@
-# Deploy Tandtid til Cloudflare Workers
+# Tandtid på Cloudflare Workers
 
-Projektet er sat op til Cloudflare Workers + Workers Assets.
+## Variabler i Cloudflare Dashboard
+Gå til Worker **tandborste** → Settings → Variables and Secrets.
 
-## 1. Installer afhængigheder
+Tilføj:
 
-```bash
-npm install
-```
+- `NUXT_MONGODB_URI` → **Secret** → samme fungerende connection string som i din lokale `.env`.
+- `NUXT_MONGODB_DB_NAME` → almindelig Variable → samme databasenavn som lokalt. Den kan udelades, hvis databasenavnet ligger direkte i URI'en.
+- `NUXT_PARENT_PIN` → **Secret**.
 
-## 2. Log ind på Cloudflare
-
-```bash
-npx wrangler login
-```
-
-## 3. Opret secrets/variabler
-
-Kør disse én ad gangen og indsæt værdien, når Wrangler spørger:
-
-```bash
-npx wrangler secret put NUXT_MONGODB_URI
-npx wrangler secret put NUXT_MONGODB_DB_NAME
-npx wrangler secret put NUXT_PARENT_PIN
-```
-
-Brug samme værdier som i din lokale `.env`.
-
-## 4. Deploy
-
-```bash
-npm run deploy
-```
-
-Det kører først et Nuxt-build med Cloudflare-preset og derefter `wrangler deploy`.
-
-## 5. Kontroller databasen
-
-Når appen er online, åbn:
-
-```text
-https://DIN-ADRESSE/api/health
-```
-
-Forventet svar når MongoDB virker:
-
-```json
-{"ok":true,"database":true}
-```
-
-## 6. Test appen
-
-- Åbn forsiden.
-- Log ind som Forældre.
-- Kør `Test rigtig tid`.
-- Test kamera.
-- Gennemfør én rigtig test/børstning.
-- Kontroller at `brushing_sessions` får data i MongoDB.
-
-## 7. Installer på iPad
-
-Åbn appen i Safari → Del → Føj til hjemmeskærm.
-
-PWA-funktioner og kamera kræver HTTPS i produktion. `*.workers.dev`-adressen er allerede HTTPS.
+`wrangler.jsonc` har `keep_vars: true`, så værdier som er sat i Dashboardet ikke bliver slettet ved et GitHub/Wrangler deploy. Secrets bliver heller ikke lagt i Git.
 
 ## MongoDB Atlas
+MongoDB Atlas skal tillade forbindelser fra Cloudflare. Hvis du bruger en IP Access List og Cloudflare ikke har en fast egress-IP, skal listen være sat, så Workers kan nå clusteret.
 
-Cloudflare Worker skal kunne nå din Atlas-cluster. Hvis `/api/health` ikke kan forbinde, kontroller især Atlas Network Access og databasebrugerens rettigheder. Brug en separat databasebruger med kun de rettigheder appen behøver.
+Brug den connection string, der allerede virker lokalt. Du behøver normalt ikke selv tilføje ekstra auth-parametre.
+
+## Test
+Når deployment er færdigt:
+
+`https://tandborste.laurapoyner.workers.dev/api/health`
+
+Succes:
+
+```json
+{"ok":true,"database":true,...}
+```
+
+Hvis `mongodbUriPresent` er `false`, mangler Cloudflare-secretet.
+Hvis den er `true`, men databasen fejler, viser `error.name` og `error.message` den faktiske MongoDB-fejl uden at vise connection string eller password.
+
+## Lokal udvikling
+Behold din eksisterende `.env` og kør:
+
+```powershell
+npm install
+npm run dev
+```
