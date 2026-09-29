@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
 
   const result = await withDb(event, async (db) => {
+    const updatedAt = body.updatedAt || new Date().toISOString()
     await db.collection('app_config').updateOne(
       { key: 'family' },
       {
@@ -13,17 +14,14 @@ export default defineEventHandler(async (event) => {
           key: 'family',
           settings: body.settings,
           rewards: body.rewards,
-          updatedAt: body.updatedAt || new Date().toISOString()
+          updatedAt
         }
       },
       { upsert: true }
     )
-    return { ok: true }
+    return { ok: true, updatedAt }
   })
 
-  if (!result) {
-    throw createError({ statusCode: 503, statusMessage: 'MongoDB er ikke konfigureret endnu' })
-  }
-
+  if (!result) throw createError({ statusCode: 503, statusMessage: 'MongoDB er ikke konfigureret endnu' })
   return result
 })

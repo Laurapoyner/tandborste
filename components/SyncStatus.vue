@@ -1,11 +1,20 @@
 <script setup lang="ts">
-const { pendingCount, syncing, isOnline } = useSyncQueue()
+const online = ref(true)
+
+onMounted(() => {
+  const update = () => { online.value = navigator.onLine }
+  update()
+  window.addEventListener('online', update)
+  window.addEventListener('offline', update)
+  onBeforeUnmount(() => {
+    window.removeEventListener('online', update)
+    window.removeEventListener('offline', update)
+  })
+})
 </script>
 
 <template>
-  <div v-if="!isOnline || pendingCount > 0 || syncing" class="sync-status" :class="{offline:!isOnline}">
-    <span v-if="!isOnline">📴 Offline · gemmer på enheden</span>
-    <span v-else-if="syncing">☁️ Synkroniserer…</span>
-    <span v-else>☁️ {{ pendingCount }} venter på synkronisering</span>
+  <div v-if="!online" class="offline-banner">
+    ⚠️ Offline – Tandtid kan åbnes, men nye tandbørstninger og ændringer kan ikke gemmes før der er internet.
   </div>
 </template>

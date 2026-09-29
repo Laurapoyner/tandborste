@@ -1,7 +1,5 @@
 import type { BrushingSession, Period } from '~/types'
 
-function localKey(childId: string) { return `tandtid:sessions:${childId}` }
-
 function normalizeSession(input: any): BrushingSession {
   return {
     ...input,
@@ -9,79 +7,58 @@ function normalizeSession(input: any): BrushingSession {
   }
 }
 
+function chronological(a: BrushingSession, b: BrushingSession) {
+  return String(a.completedAt || a.startedAt || a.date).localeCompare(String(b.completedAt || b.startedAt || b.date))
+}
+
 export const useBrushData = () => {
   const sessions = useState<BrushingSession[]>('sessions', () => [])
-  const { enqueue, remove, flush } = useSyncQueue()
+  const loading = useState('sessions-loading', () => false)
 
-  const persistChild = (childId: string, list: BrushingSession[]) => {
-    if (!import.meta.client) return
-    localStorage.setItem(localKey(childId), JSON.stringify(list))
-  }
-
-  const loadLocal = (childId: string) => {
-    if (!import.meta.client) return
-    let parsed: BrushingSession[] = []
-    try { parsed = JSON.parse(localStorage.getItem(localKey(childId)) || '[]') } catch {}
-    const other = sessions.value.filter(s => s.childId !== childId)
-    sessions.value = [...other, ...parsed]
-    syncFromServer(childId)
-  }
-
-  const syncFromServer = async (childId: string) => {
-    if (!import.meta.client || !navigator.onLine) return
+  const syncFromServer = async (childId?: string) => {
+    if (!import.meta.client || !navigator.onLine || loading.value) return
+    loading.value = true
     try {
-      const remote = await $fetch<any[]>('/api/sessions', { query: { childId } })
-      const local = sessions.value.filter(s => s.childId === childId)
-      const merged = new Map<string, BrushingSession>()
-      for (const item of remote || []) {
-        const s = normalizeSession(item)
-        merged.set(s.id || `${s.childId}:${s.completedAt}`, s)
+      const remote = await $fetch<any[]>('/api/sessions', { query: childId ? { childId } : {} })
+      const normalized = (remote || []).map(normalizeSession)
+      if (childId) {
+        sessions.value = [
+          ...sessions.value.filter(s => s.childId !== childId),
+          ...normalized
+        ]
+      } else {
+        sessions.value = normalized
       }
-      for (const s of local) merged.set(s.id || `${s.childId}:${s.completedAt}`, s)
-      const childList = [...merged.values()].sort((a,b)=>(a.completedAt||a.date).localeCompare(b.completedAt||b.date))
-      persistChild(childId, childList)
-      sessions.value = [...sessions.value.filter(s => s.childId !== childId), ...childList]
-      await flush()
-    } catch {}
+    } finally {
+      loading.value = false
+    }
   }
 
-  const saveLocal = (session: BrushingSession) => {
-    if (!import.meta.client) return
-    const normalized = { ...session, id: session.id || crypto.randomUUID() }
-    let list: BrushingSession[] = []
-    try { list = JSON.parse(localStorage.getItem(localKey(normalized.childId)) || '[]') } catch {}
-    const idx = list.findIndex(s => s.id === normalized.id)
-    if (idx >= 0) list[idx] = normalized
-    else list.push(normalized)
-    persistChild(normalized.childId, list)
-    const stateIdx = sessions.value.findIndex(s => s.id === normalized.id)
-    if (stateIdx >= 0) sessions.value[stateIdx] = normalized
-    else sessions.value.push(normalized)
-    return normalized
-  }
+  // Behold navnet, så eksisterende sider ikke skal ændres overalt.
+  const loadLocal = (childId: string) => syncFromServer(childId)
 
   const saveSession = async (session: BrushingSession) => {
-    const saved = saveLocal({ ...session, id: session.id || crypto.randomUUID() })!
-    enqueue('session', saved, `session:${saved.id}`)
-    await flush()
+    if (!import.meta.client || !navigator.onLine) {
+      throw new Error('Ingen internetforbindelse – tandbørstningen blev ikke gemt.')
+    }
+    const payload = { ...session, id: session.id || crypto.randomUUID() }
+    const result = await $fetch<any>('/api/sessions', { method: 'POST', body: payload })
+    const saved = normalizeSession(result?.session || { ...payload, starsEarned: result?.starsEarned ?? payload.starsEarned })
+    const idx = sessions.value.findIndex(s => s.id === saved.id)
+    if (idx >= 0) sessions.value[idx] = saved
+    else sessions.value.push(saved)
+    return saved
+  }
+
+  const addManualSession = async (session: BrushingSession) => {
+    return saveSession({ ...session, manual: true })
   }
 
   const deleteSession = async (session: BrushingSession) => {
     if (!import.meta.client || !session.id) return
-
-    const id = session.id
-
-    let list: BrushingSession[] = []
-    try { list = JSON.parse(localStorage.getItem(localKey(session.childId)) || '[]') } catch {}
-    list = list.filter(s => s.id !== id)
-    persistChild(session.childId, list)
-
-    sessions.value = sessions.value.filter(s => s.id !== id)
-
-    // Fjern evt. ventende oprettelse og kø sletningen til serveren.
-    remove(`session:${id}`)
-    enqueue('session_delete', { id }, `session-delete:${id}`)
-    await flush()
+    if (!navigator.onLine) throw new Error('Ingen internetforbindelse – tandbørstningen blev ikke slettet.')
+    await $fetch(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' })
+    sessions.value = sessions.value.filter(s => s.id !== session.id)
   }
 
   const periodNow = (): Period | null => {
@@ -91,18 +68,29 @@ export const useBrushData = () => {
     return null
   }
 
-  const starsFor = (childId: string) => {
-    const earned = sessions.value.filter(s => s.childId === childId).reduce((a, s) => a + s.starsEarned, 0)
-    if (!import.meta.client) return earned
-    try {
-      const spent = (JSON.parse(localStorage.getItem('tandtid:redemptions') || '[]') as any[])
-        .filter(r => r.childId === childId)
-        .reduce((a, r) => a + Number(r.cost || 0), 0)
-      return earned - spent
-    } catch { return earned }
+  const firstAttempts = (childId: string) => {
+    const child = sessions.value.filter(s => s.childId === childId).sort(chronological)
+    const seen = new Set<string>()
+    const first: BrushingSession[] = []
+    for (const s of child) {
+      const key = `${s.date}:${s.period}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      first.push(s)
+    }
+    return first
   }
 
-  const completedCount = (childId: string) => sessions.value.filter(s => s.childId === childId && s.status === 'completed').length
+  const earnedFor = (childId: string) => firstAttempts(childId).reduce((sum, s) => {
+    if (s.status === 'completed') return sum + 1
+    if (s.status === 'ended_early') return sum + 0.5
+    return sum
+  }, 0)
+
+  const starsFor = (childId: string, spent = 0) => earnedFor(childId) - spent
+
+  const completedCount = (childId: string) => sessions.value
+    .filter(s => s.childId === childId && s.status === 'completed').length
 
   const dayStreak = (childId: string) => {
     const child = sessions.value.filter(s => s.childId === childId && s.status === 'completed')
@@ -115,7 +103,7 @@ export const useBrushData = () => {
     let streak = 0
     const d = new Date()
     for (let i = 0; i < 365; i++) {
-      const key = d.toISOString().slice(0, 10)
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
       const set = days.get(key)
       if (set?.has('morning') && set?.has('evening')) streak++
       else if (i === 0) { /* i dag kan stadig være i gang */ }
@@ -125,5 +113,8 @@ export const useBrushData = () => {
     return streak
   }
 
-  return { sessions, loadLocal, syncFromServer, saveSession, deleteSession, periodNow, starsFor, completedCount, dayStreak }
+  const hasAttempt = (childId: string, date: string, period: Period) =>
+    sessions.value.some(s => s.childId === childId && s.date === date && s.period === period)
+
+  return { sessions, loadLocal, syncFromServer, saveSession, addManualSession, deleteSession, periodNow, starsFor, earnedFor, completedCount, dayStreak, hasAttempt, loading }
 }

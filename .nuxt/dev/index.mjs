@@ -3281,6 +3281,7 @@ const appConfig_put = defineEventHandler(async (event) => {
   requireParent(event);
   const body = await readBody(event);
   const result = await withDb(event, async (db) => {
+    const updatedAt = body.updatedAt || (/* @__PURE__ */ new Date()).toISOString();
     await db.collection("app_config").updateOne(
       { key: "family" },
       {
@@ -3288,16 +3289,14 @@ const appConfig_put = defineEventHandler(async (event) => {
           key: "family",
           settings: body.settings,
           rewards: body.rewards,
-          updatedAt: body.updatedAt || (/* @__PURE__ */ new Date()).toISOString()
+          updatedAt
         }
       },
       { upsert: true }
     );
-    return { ok: true };
+    return { ok: true, updatedAt };
   });
-  if (!result) {
-    throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
-  }
+  if (!result) throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
   return result;
 });
 
@@ -3413,22 +3412,38 @@ const sessions_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
   default: sessions_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
+function starsForStatus(status) {
+  return status === "completed" ? 1 : status === "ended_early" ? 0.5 : 0;
+}
 const sessions_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
-  if (!(body == null ? void 0 : body.id)) {
-    throw createError({ statusCode: 400, statusMessage: "Mangler id" });
+  if (!(body == null ? void 0 : body.id) || !(body == null ? void 0 : body.childId) || !(body == null ? void 0 : body.date) || !(body == null ? void 0 : body.period)) {
+    throw createError({ statusCode: 400, statusMessage: "Mangler oplysninger om tandb\xF8rstningen" });
   }
+  if (body.manual) requireParent(event);
   const result = await withDb(event, async (db) => {
-    await db.collection("brushing_sessions").updateOne(
-      { id: body.id },
-      { $setOnInsert: { ...body, createdAtDb: /* @__PURE__ */ new Date() } },
-      { upsert: true }
-    );
-    return { ok: true, id: body.id };
+    const collection = db.collection("brushing_sessions");
+    const existingSameId = await collection.findOne({ id: body.id });
+    if (existingSameId) {
+      return { ok: true, session: existingSameId, starsEarned: Number(existingSameId.starsEarned || 0) };
+    }
+    const previousAttempt = await collection.findOne({
+      childId: body.childId,
+      date: body.date,
+      period: body.period
+    });
+    const rewardEligible = !previousAttempt;
+    const starsEarned = rewardEligible ? starsForStatus(body.status) : 0;
+    const doc = {
+      ...body,
+      starsEarned,
+      rewardEligible,
+      createdAtDb: /* @__PURE__ */ new Date()
+    };
+    await collection.insertOne(doc);
+    return { ok: true, session: doc, starsEarned, rewardEligible };
   });
-  if (!result) {
-    throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
-  }
+  if (!result) throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
   return result;
 });
 

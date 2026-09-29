@@ -40,6 +40,8 @@ let stream: MediaStream | null = null
 let interval: any = null
 let startTs = 0
 const cameraError = ref('')
+const saveError = ref('')
+const savedSession = ref<BrushingSession | null>(null)
 
 const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 const adultRequired = computed(() => forcedAdult.value || settings.value.adultRules[dayKeys[new Date().getDay()]][period])
@@ -143,12 +145,19 @@ function earlySeconds() {
   return Math.min(total.value, Math.max(0, total.value - remaining.value))
 }
 
+function localDateString() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
 async function persist() {
   if (testMode.value) return
+  saveError.value = ''
   const actual = earlySeconds()
   const session: BrushingSession = {
+    id: crypto.randomUUID(),
     childId: id,
-    date: new Date().toISOString().slice(0, 10),
+    date: localDateString(),
     period,
     startedAt: new Date(startTs).toISOString(),
     completedAt: new Date().toISOString(),
@@ -158,9 +167,13 @@ async function persist() {
     adultRequired: adultRequired.value,
     adultApproved: adultRequired.value ? adultUnlocked.value : true,
     approvedBy: approvedBy.value,
-    starsEarned: endedEarly.value ? 0.5 : 1
+    starsEarned: 0
   }
-  await saveSession(session)
+  try {
+    savedSession.value = await saveSession(session)
+  } catch (error: any) {
+    saveError.value = error?.data?.message || error?.message || 'Tandbørstningen kunne ikke gemmes.'
+  }
 }
 
 async function unlockAdult() {
@@ -255,6 +268,9 @@ onBeforeUnmount(() => {
       <p :class="['pill', endedEarly ? 'status-yellow' : 'status-green']">{{ earlySeconds() }} sek. / {{ total }} sek.</p>
       <p v-if="adultRequired && approvedBy" class="muted">Godkendt før start af {{ approvedBy }}</p>
       <p v-if="testMode" class="muted">Testen er færdig. Der er ikke gemt stjerner eller historik.</p>
+      <p v-else-if="saveError" class="pill status-red">⚠️ {{saveError}} Bed Mor eller Far tilføje tandbørstningen manuelt under Forældre → Historik.</p>
+      <p v-else-if="savedSession?.rewardEligible===false" class="pill status-yellow">Tandbørstningen er gemt, men du har allerede fået dagens stjerne for denne periode.</p>
+      <p v-else-if="savedSession" class="pill status-green">Gemt ✓ +{{savedSession.starsEarned}} ⭐</p>
       <button class="btn btn-primary" @click="leave">{{ testMode ? 'Tilbage til forældre' : 'Færdig' }}</button>
     </section>
   </main>

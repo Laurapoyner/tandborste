@@ -117,3 +117,17 @@ Cloudflare variables/secrets:
 - NUXT_MONGODB_URI
 - NUXT_MONGODB_DB_NAME (valgfri hvis databasenavnet står i URI'en)
 - NUXT_PARENT_PIN
+
+## V13 – MongoDB som eneste datakilde
+
+V13 bruger MongoDB som source of truth for tandbørstninger, belønninger, indstillinger og indløsninger.
+Der gemmes ikke længere app-data i localStorage.
+
+Det betyder:
+- ændringer deles på tværs af iPad, iPhone og computer
+- forældrene kan manuelt tilføje en manglende tandbørstning
+- kun første tandbørstning pr. barn pr. morgen/aften giver stjerner
+- ekstra tandbørstninger gemmes i historikken, men giver 0 stjerner
+- historikken viser klokkeslæt
+- belønninger gemmes direkte i MongoDB og kan opdateres manuelt på børnenes enheder
+- hvis internet mangler, vises en tydelig fejl i stedet for at gemme en lokal kopi, som kan komme ud af sync

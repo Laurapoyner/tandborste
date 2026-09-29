@@ -1,1 +1,6 @@
-export default defineNuxtRouteMiddleware(()=>{if(import.meta.client && sessionStorage.getItem('tandtid:parent')!=='1') return navigateTo('/parent/login')})
+<template>
+  <div class="app-shell">
+    <SyncStatus />
+    <slot />
+  </div>
+</template>

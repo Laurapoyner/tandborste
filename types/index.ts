@@ -22,6 +22,9 @@ export interface BrushingSession {
   adultApproved: boolean
   approvedBy?: ParentName
   starsEarned: number
+  rewardEligible?: boolean
+  manual?: boolean
+  createdByParent?: ParentName
 }
 
 export interface Reward {
@@ -33,4 +36,13 @@ export interface Reward {
   active: boolean
 }
 
-export interface Redemption { id: string; childId: string; rewardId: string; rewardTitle: string; rewardEmoji: string; cost: number; approvedBy: ParentName; createdAt: string }
+export interface Redemption {
+  id: string
+  childId: string
+  rewardId: string
+  rewardTitle: string
+  rewardEmoji: string
+  cost: number
+  approvedBy: ParentName
+  createdAt: string
+}

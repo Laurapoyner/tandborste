@@ -3,22 +3,29 @@ import type { ParentName, Reward } from '~/types'
 
 const route = useRoute()
 const id = String(route.params.id)
-const { children, rewards } = useTandtidConfig()
+const { children, rewards, loadRemote } = useTandtidConfig()
 const { loadLocal, starsFor } = useBrushData()
 const ledger = useRewardsLedger()
 const { verify } = useParentAuth()
 const child = children.find(c => c.id === id)
 const refresh = ref(0)
 
-onMounted(() => { loadLocal(id); ledger.hydrate() })
+onMounted(async () => {
+  await Promise.all([loadRemote(), loadLocal(id), ledger.hydrate()])
+})
 
-const stars = computed(() => { refresh.value; return starsFor(id) })
+const stars = computed(() => { refresh.value; return starsFor(id, ledger.spentFor(id)) })
 const selected = ref<Reward | null>(null)
 const pin = ref('')
 const who = ref<ParentName | undefined>()
 const error = ref('')
 const success = ref('')
 const loading = ref(false)
+
+async function refreshAll(){
+  await Promise.all([loadRemote(), loadLocal(id), ledger.syncFromServer()])
+  refresh.value++
+}
 
 async function redeem() {
   if (!selected.value) return
@@ -30,24 +37,29 @@ async function redeem() {
   const ok = await verify(pin.value)
   if (!ok) {
     loading.value = false
-    error.value = navigator.onLine ? 'Forkert forældre-PIN' : 'PIN kan ikke godkendes offline på denne enhed endnu.'
+    error.value = navigator.onLine ? 'Forkert forældre-PIN' : 'Der skal være internet for at godkende en belønning.'
     return
   }
 
-  await ledger.redeem(id, selected.value, who.value)
-  refresh.value++
-  success.value = `${selected.value.emoji} ${selected.value.title} er indløst`
-  selected.value = null
-  pin.value = ''
-  who.value = undefined
-  loading.value = false
+  try {
+    await ledger.redeem(id, selected.value, who.value)
+    refresh.value++
+    success.value = `${selected.value.emoji} ${selected.value.title} er indløst`
+    selected.value = null
+    pin.value = ''
+    who.value = undefined
+  } catch {
+    error.value = 'Kunne ikke gemme indløsningen i databasen.'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <template>
   <main class="container">
     <div class="topbar"><NuxtLink class="link" :to="`/child/${id}`">← {{child?.name}}</NuxtLink><span class="pill">⭐ {{stars}}</span></div>
-    <h1>🎁 Belønninger</h1>
+    <div class="section-heading"><div><h1>🎁 Belønninger</h1><p class="muted">Belønninger hentes fra den fælles database.</p></div><button class="btn btn-small" @click="refreshAll">↻ Opdater</button></div>
     <p v-if="success" class="pill status-green">{{success}}</p>
     <div class="grid">
       <div v-for="r in rewards.filter(x=>x.active)" :key="r.id" class="card reward">
