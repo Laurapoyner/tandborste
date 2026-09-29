@@ -3202,10 +3202,6 @@ const styles$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   default: styles
 }, Symbol.toStringTag, { value: 'Module' }));
 
-let client = null;
-let dbPromise = null;
-let indexesReady = false;
-let activeConnectionKey = "";
 function mongoSettings(event) {
   const config = useRuntimeConfig(event);
   const uri = String(
@@ -3216,50 +3212,39 @@ function mongoSettings(event) {
   ).trim();
   return { uri, dbName };
 }
-async function getDb(event) {
+async function withDb(event, fn) {
   const { uri, dbName } = mongoSettings(event);
   if (!uri) return null;
-  const connectionKey = `${uri}::${dbName}`;
-  if (activeConnectionKey && activeConnectionKey !== connectionKey) {
+  const client = new MongoClient(uri, {
+    maxPoolSize: 1,
+    minPoolSize: 0,
+    serverSelectionTimeoutMS: 8e3,
+    connectTimeoutMS: 8e3
+  });
+  try {
+    await client.connect();
+    const db = client.db(dbName || void 0);
+    return await fn(db);
+  } finally {
     try {
-      await (client == null ? void 0 : client.close());
+      await client.close();
     } catch {
     }
-    client = null;
-    dbPromise = null;
-    indexesReady = false;
   }
-  activeConnectionKey = connectionKey;
-  if (!dbPromise) {
-    client = new MongoClient(uri, {
-      maxPoolSize: 2,
-      serverSelectionTimeoutMS: 8e3,
-      connectTimeoutMS: 8e3
-    });
-    dbPromise = client.connect().then((c) => c.db(dbName || void 0)).catch((err) => {
-      dbPromise = null;
-      client = null;
-      indexesReady = false;
-      throw err;
-    });
-  }
-  const db = await dbPromise;
-  if (!indexesReady) {
-    indexesReady = true;
-    Promise.allSettled([
-      db.collection("brushing_sessions").createIndex({ id: 1 }, { unique: true }),
-      db.collection("reward_redemptions").createIndex({ id: 1 }, { unique: true }),
-      db.collection("app_config").createIndex({ key: 1 }, { unique: true })
-    ]).catch(() => {
-    });
-  }
-  return db;
+}
+function getMongoConfigStatus(event) {
+  const { uri, dbName } = mongoSettings(event);
+  return {
+    mongodbUriPresent: Boolean(uri),
+    mongodbDbNamePresent: Boolean(dbName)
+  };
 }
 
 const appConfig_get = defineEventHandler(async (event) => {
-  const db = await getDb(event);
-  if (!db) return null;
-  return db.collection("app_config").findOne({ key: "family" });
+  const result = await withDb(event, async (db) => {
+    return db.collection("app_config").findOne({ key: "family" });
+  });
+  return result != null ? result : null;
 });
 
 const appConfig_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
@@ -3295,14 +3280,25 @@ function requireParent(event) {
 const appConfig_put = defineEventHandler(async (event) => {
   requireParent(event);
   const body = await readBody(event);
-  const db = await getDb(event);
-  if (!db) throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
-  await db.collection("app_config").updateOne(
-    { key: "family" },
-    { $set: { key: "family", settings: body.settings, rewards: body.rewards, updatedAt: body.updatedAt || (/* @__PURE__ */ new Date()).toISOString() } },
-    { upsert: true }
-  );
-  return { ok: true };
+  const result = await withDb(event, async (db) => {
+    await db.collection("app_config").updateOne(
+      { key: "family" },
+      {
+        $set: {
+          key: "family",
+          settings: body.settings,
+          rewards: body.rewards,
+          updatedAt: body.updatedAt || (/* @__PURE__ */ new Date()).toISOString()
+        }
+      },
+      { upsert: true }
+    );
+    return { ok: true };
+  });
+  if (!result) {
+    throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
+  }
+  return result;
 });
 
 const appConfig_put$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
@@ -3311,32 +3307,38 @@ const appConfig_put$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const health_get = defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event);
-  const uriPresent = Boolean(config.mongodbUri || process.env.NUXT_MONGODB_URI);
-  const dbNamePresent = Boolean(config.mongodbDbName || process.env.NUXT_MONGODB_DB_NAME);
+  const config = getMongoConfigStatus(event);
   try {
-    const db = await getDb(event);
-    if (!db) {
+    const result = await withDb(event, async (db) => {
+      await db.command({ ping: 1 });
+      return {
+        databaseName: db.databaseName
+      };
+    });
+    if (!result) {
       return {
         ok: false,
         database: false,
-        config: { mongodbUriPresent: uriPresent, mongodbDbNamePresent: dbNamePresent },
+        config,
         reason: "MongoDB URI er ikke konfigureret"
       };
     }
-    await db.command({ ping: 1 });
     return {
       ok: true,
       database: true,
-      config: { mongodbUriPresent: uriPresent, mongodbDbNamePresent: dbNamePresent }
+      databaseName: result.databaseName,
+      config
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     return {
       ok: false,
       database: false,
-      config: { mongodbUriPresent: uriPresent, mongodbDbNamePresent: dbNamePresent },
-      error: { name: err.name, message: err.message }
+      config,
+      error: {
+        name: err.name,
+        message: err.message
+      }
     };
   }
 });
@@ -3361,9 +3363,10 @@ const parentLogin_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.define
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const redemptions_get = defineEventHandler(async (event) => {
-  const db = await getDb(event);
-  if (!db) return [];
-  return db.collection("reward_redemptions").find({}).sort({ createdAt: -1 }).limit(500).toArray();
+  const result = await withDb(event, async (db) => {
+    return db.collection("reward_redemptions").find({}).sort({ createdAt: -1 }).limit(500).toArray();
+  });
+  return result != null ? result : [];
 });
 
 const redemptions_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
@@ -3374,15 +3377,21 @@ const redemptions_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineP
 const redemptions_post = defineEventHandler(async (event) => {
   requireParent(event);
   const body = await readBody(event);
-  if (!(body == null ? void 0 : body.id)) throw createError({ statusCode: 400, statusMessage: "Mangler id" });
-  const db = await getDb(event);
-  if (!db) throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
-  await db.collection("reward_redemptions").updateOne(
-    { id: body.id },
-    { $setOnInsert: { ...body, createdAtDb: /* @__PURE__ */ new Date() } },
-    { upsert: true }
-  );
-  return { ok: true, id: body.id };
+  if (!(body == null ? void 0 : body.id)) {
+    throw createError({ statusCode: 400, statusMessage: "Mangler id" });
+  }
+  const result = await withDb(event, async (db) => {
+    await db.collection("reward_redemptions").updateOne(
+      { id: body.id },
+      { $setOnInsert: { ...body, createdAtDb: /* @__PURE__ */ new Date() } },
+      { upsert: true }
+    );
+    return { ok: true, id: body.id };
+  });
+  if (!result) {
+    throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
+  }
+  return result;
 });
 
 const redemptions_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
@@ -3391,11 +3400,12 @@ const redemptions_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.define
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const sessions_get = defineEventHandler(async (event) => {
-  const db = await getDb(event);
-  if (!db) return [];
   const childId = getQuery$1(event).childId;
   const q = childId ? { childId } : {};
-  return db.collection("brushing_sessions").find(q).sort({ completedAt: -1 }).limit(500).toArray();
+  const result = await withDb(event, async (db) => {
+    return db.collection("brushing_sessions").find(q).sort({ completedAt: -1 }).limit(500).toArray();
+  });
+  return result != null ? result : [];
 });
 
 const sessions_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
@@ -3405,15 +3415,21 @@ const sessions_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
 
 const sessions_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
-  if (!(body == null ? void 0 : body.id)) throw createError({ statusCode: 400, statusMessage: "Mangler id" });
-  const db = await getDb(event);
-  if (!db) throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
-  await db.collection("brushing_sessions").updateOne(
-    { id: body.id },
-    { $setOnInsert: { ...body, createdAtDb: /* @__PURE__ */ new Date() } },
-    { upsert: true }
-  );
-  return { ok: true, id: body.id };
+  if (!(body == null ? void 0 : body.id)) {
+    throw createError({ statusCode: 400, statusMessage: "Mangler id" });
+  }
+  const result = await withDb(event, async (db) => {
+    await db.collection("brushing_sessions").updateOne(
+      { id: body.id },
+      { $setOnInsert: { ...body, createdAtDb: /* @__PURE__ */ new Date() } },
+      { upsert: true }
+    );
+    return { ok: true, id: body.id };
+  });
+  if (!result) {
+    throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
+  }
+  return result;
 });
 
 const sessions_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
@@ -3424,11 +3440,21 @@ const sessions_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
 const _id__delete = defineEventHandler(async (event) => {
   requireParent(event);
   const id = getRouterParam(event, "id");
-  if (!id) throw createError({ statusCode: 400, statusMessage: "Mangler id" });
-  const db = await getDb(event);
-  if (!db) throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
-  const result = await db.collection("brushing_sessions").deleteOne({ id });
-  return { ok: true, id, deleted: result.deletedCount > 0 };
+  if (!id) {
+    throw createError({ statusCode: 400, statusMessage: "Mangler id" });
+  }
+  const result = await withDb(event, async (db) => {
+    const deletion = await db.collection("brushing_sessions").deleteOne({ id });
+    return {
+      ok: true,
+      id,
+      deleted: deletion.deletedCount > 0
+    };
+  });
+  if (!result) {
+    throw createError({ statusCode: 503, statusMessage: "MongoDB er ikke konfigureret endnu" });
+  }
+  return result;
 });
 
 const _id__delete$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

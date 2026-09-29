@@ -46,10 +46,10 @@ declare global {
   const fromPlainHandler: typeof import('../../node_modules/h3').fromPlainHandler
   const fromWebHandler: typeof import('../../node_modules/h3').fromWebHandler
   const getCookie: typeof import('../../node_modules/h3').getCookie
-  const getDb: typeof import('../../server/utils/mongo').getDb
   const getHeader: typeof import('../../node_modules/h3').getHeader
   const getHeaders: typeof import('../../node_modules/h3').getHeaders
   const getMethod: typeof import('../../node_modules/h3').getMethod
+  const getMongoConfigStatus: typeof import('../../server/utils/mongo').getMongoConfigStatus
   const getProxyRequestHeaders: typeof import('../../node_modules/h3').getProxyRequestHeaders
   const getQuery: typeof import('../../node_modules/h3').getQuery
   const getRequestFingerprint: typeof import('../../node_modules/h3').getRequestFingerprint
@@ -128,6 +128,7 @@ declare global {
   const useRuntimeConfig: typeof import('../../node_modules/nitropack/dist/runtime/internal/config').useRuntimeConfig
   const useSession: typeof import('../../node_modules/h3').useSession
   const useStorage: typeof import('../../node_modules/nitropack/dist/runtime/internal/storage').useStorage
+  const withDb: typeof import('../../server/utils/mongo').withDb
   const writeEarlyHints: typeof import('../../node_modules/h3').writeEarlyHints
 }
 // for type re-export
@@ -150,5 +151,5 @@ export { defineTask, runTask } from 'nitropack/runtime/internal/task';
 export { defineNitroErrorHandler } from 'nitropack/runtime/internal/error/utils';
 export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from 'C:/Users/laura/source/repos/tandtid-app/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
 export { defineAppConfig } from 'C:/Users/laura/source/repos/tandtid-app/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
-export { getDb } from 'C:/Users/laura/source/repos/tandtid-app/server/utils/mongo';
+export { withDb, getMongoConfigStatus } from 'C:/Users/laura/source/repos/tandtid-app/server/utils/mongo';
 export { setParentSession, requireParent } from 'C:/Users/laura/source/repos/tandtid-app/server/utils/parent-auth';

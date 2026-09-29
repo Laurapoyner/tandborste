@@ -1,35 +1,41 @@
-import { getDb } from '../utils/mongo'
+import { withDb, getMongoConfigStatus } from '../utils/mongo'
 
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig(event)
-  const uriPresent = Boolean(config.mongodbUri || process.env.NUXT_MONGODB_URI)
-  const dbNamePresent = Boolean(config.mongodbDbName || process.env.NUXT_MONGODB_DB_NAME)
+  const config = getMongoConfigStatus(event)
 
   try {
-    const db = await getDb(event)
-    if (!db) {
+    const result = await withDb(event, async (db) => {
+      await db.command({ ping: 1 })
+      return {
+        databaseName: db.databaseName
+      }
+    })
+
+    if (!result) {
       return {
         ok: false,
         database: false,
-        config: { mongodbUriPresent: uriPresent, mongodbDbNamePresent: dbNamePresent },
+        config,
         reason: 'MongoDB URI er ikke konfigureret'
       }
     }
 
-    await db.command({ ping: 1 })
-
     return {
       ok: true,
       database: true,
-      config: { mongodbUriPresent: uriPresent, mongodbDbNamePresent: dbNamePresent }
+      databaseName: result.databaseName,
+      config
     }
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error))
     return {
       ok: false,
       database: false,
-      config: { mongodbUriPresent: uriPresent, mongodbDbNamePresent: dbNamePresent },
-      error: { name: err.name, message: err.message }
+      config,
+      error: {
+        name: err.name,
+        message: err.message
+      }
     }
   }
 })

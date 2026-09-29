@@ -97,3 +97,23 @@ Efter appen er deployet og åbnet mindst én gang online:
 6. Køen synkroniseres automatisk.
 
 Bemærk: data, der kun findes lokalt og endnu ikke er synkroniseret, kan gå tabt hvis selve appen/site-data slettes fra enheden inden forbindelsen vender tilbage.
+
+## V12 – Cloudflare MongoDB request-scope fix
+
+Denne version retter en vigtig Cloudflare Workers-fejl:
+
+Tidligere blev `MongoClient` gemt i modul-global state. Cloudflare genbruger Worker-isolates
+mellem requests, men en TCP/databaseforbindelse må ikke genbruges på tværs af request-contexts.
+Det kan give `Error 1101 – Worker threw exception` efter at forbindelsen først har virket.
+
+V12:
+- opretter en ny MongoDB-klient pr. API-request
+- lukker klienten igen efter operationen
+- genbruger ikke sockets mellem requests
+- `/api/health` viser nu også det faktiske databasenavn, uden at vise URI/password
+- beholder sletning af tandbørstninger, offline-sync og alle tidligere funktioner
+
+Cloudflare variables/secrets:
+- NUXT_MONGODB_URI
+- NUXT_MONGODB_DB_NAME (valgfri hvis databasenavnet står i URI'en)
+- NUXT_PARENT_PIN
