@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
-    "build:cloudflare": "nuxt build --preset=cloudflare",
+    "build:cloudflare": "node scripts/patch-mongodb-cloudflare.mjs && nuxt build --preset=cloudflare",
     "deploy": "npm run build:cloudflare && wrangler deploy",
-    "preview": "nuxt preview"
+    "preview": "nuxt preview",
+    "prebuild": "node scripts/patch-mongodb-cloudflare.mjs"
   },
   "dependencies": {
     "@vite-pwa/nuxt": "^0.10.8",

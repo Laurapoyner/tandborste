@@ -1,39 +1,47 @@
-# Tandtid på Cloudflare Workers
+TANDTID v11 – Cloudflare/MongoDB SCRAM fix
 
-## Variabler i Cloudflare Dashboard
-Gå til Worker **tandborste** → Settings → Variables and Secrets.
+Denne version indeholder hele Tandtid-projektet fra v10 samt:
 
-Tilføj:
+- Forældre kan slette en tandbørstning fra Historik.
+- Offline-sletning synkroniseres senere.
+- MongoDB optional/native dependencies er stadig stubbet til Cloudflare.
+- NYT: MongoDB SCRAM-SHA-1 crypto-require patches automatisk før build.
 
-- `NUXT_MONGODB_URI` → **Secret** → samme fungerende connection string som i din lokale `.env`.
-- `NUXT_MONGODB_DB_NAME` → almindelig Variable → samme databasenavn som lokalt. Den kan udelades, hvis databasenavnet ligger direkte i URI'en.
-- `NUXT_PARENT_PIN` → **Secret**.
+Hvorfor crypto-patchen findes:
+MongoDB-driveren kalder require("crypto") inde i en try/catch ved SCRAM-SHA-1.
+Nitro/Rollup lader optional require-kald inde i try/catch stå dynamiske.
+Cloudflare har node:crypto, men den dynamiske require kan derfor stadig fejle.
+Build-scriptet flytter kun dette crypto-import til module scope som
+require("node:crypto"), så bundleren kan se det statisk.
 
-`wrangler.jsonc` har `keep_vars: true`, så værdier som er sat i Dashboardet ikke bliver slettet ved et GitHub/Wrangler deploy. Secrets bliver heller ikke lagt i Git.
+Du skal IKKE ændre den MongoDB URI, der allerede virker lokalt.
+Kopiér din eksisterende .env ind i den nye projektmappe.
 
-## MongoDB Atlas
-MongoDB Atlas skal tillade forbindelser fra Cloudflare. Hvis du bruger en IP Access List og Cloudflare ikke har en fast egress-IP, skal listen være sat, så Workers kan nå clusteret.
+Lokalt:
+  npm install
+  npm run dev
 
-Brug den connection string, der allerede virker lokalt. Du behøver normalt ikke selv tilføje ekstra auth-parametre.
+Cloudflare Dashboard:
+  NUXT_MONGODB_URI      = præcis samme URI som i din fungerende .env
+  NUXT_MONGODB_DB_NAME  = præcis samme databasenavn som i .env
+  NUXT_PARENT_PIN       = din PIN
 
-## Test
-Når deployment er færdigt:
+NUXT_MONGODB_URI og NUXT_PARENT_PIN kan gemmes som Secrets.
+DB-navnet kan gemmes som almindelig variabel.
 
-`https://tandborste.laurapoyner.workers.dev/api/health`
+Git:
+  git add .
+  git commit -m "Tandtid v11 Cloudflare MongoDB fix"
+  git push
 
-Succes:
+Cloudflare build command:
+  npm run build
 
-```json
-{"ok":true,"database":true,...}
-```
+Cloudflare deploy command:
+  npx wrangler deploy
 
-Hvis `mongodbUriPresent` er `false`, mangler Cloudflare-secretet.
-Hvis den er `true`, men databasen fejler, viser `error.name` og `error.message` den faktiske MongoDB-fejl uden at vise connection string eller password.
+Efter deploy test:
+  https://tandborste.laurapoyner.workers.dev/api/health
 
-## Lokal udvikling
-Behold din eksisterende `.env` og kør:
-
-```powershell
-npm install
-npm run dev
-```
+Forventet resultat:
+  {"ok":true,"database":true,...}
