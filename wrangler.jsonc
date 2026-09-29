@@ -1,28 +1,15 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tandtid",
+  "name": "tandborste",
   "main": ".output/server/index.mjs",
   "compatibility_date": "2026-09-29",
   "compatibility_flags": [
     "nodejs_compat"
   ],
-
-  "vars": {
-    "NUXT_MONGODB_DB_NAME": "tandtid"
-  },
-
-  "secrets": {
-    "required": [
-      "NUXT_MONGODB_URI",
-      "NUXT_PARENT_PIN"
-    ]
-  },
-
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS"
   },
-
   "observability": {
     "enabled": true
   }
