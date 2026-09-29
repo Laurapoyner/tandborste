@@ -6,10 +6,23 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+
+  "vars": {
+    "NUXT_MONGODB_DB_NAME": "tandtid"
+  },
+
+  "secrets": {
+    "required": [
+      "NUXT_MONGODB_URI",
+      "NUXT_PARENT_PIN"
+    ]
+  },
+
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS"
   },
+
   "observability": {
     "enabled": true
   }
