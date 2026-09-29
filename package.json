@@ -10,6 +10,7 @@
     "preview": "nuxt preview"
   },
   "dependencies": {
+    "@aws-sdk/credential-providers": "^3.1142.0",
     "@vite-pwa/nuxt": "^0.10.8",
     "mongodb": "^6.19.0",
     "nuxt": "^3.20.0",
