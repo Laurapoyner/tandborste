@@ -1,0 +1,6 @@
+<script setup lang="ts">
+const route=useRoute(); const id=String(route.params.id); const {children}=useTandtidConfig(); const {loadLocal,dayStreak,completedCount}=useBrushData()
+const child=children.find(c=>c.id===id); onMounted(()=>loadLocal(id)); const streak=computed(()=>dayStreak(id)); const count=computed(()=>completedCount(id))
+const streakBadges=[3,7,14,30,60,100]; const brushBadges=[10,25,50,100,250,500]
+</script>
+<template><main class="container"><div class="topbar"><NuxtLink class="link" :to="`/child/${id}`">← {{child?.name}}</NuxtLink><span class="pill">🏆 Badges</span></div><h1>Mine badges</h1><section class="section"><h2>🔥 Streaks</h2><div class="grid grid-3"><div v-for="n in streakBadges" :key="n" class="card" :style="streak<n?'opacity:.42':''"><div class="emoji-lg">🔥</div><strong>{{n}} dage</strong><p class="muted">{{streak>=n?'Låst op!':'Ikke endnu'}}</p></div></div></section><section class="section"><h2>🪥 Tandbørstninger</h2><div class="grid grid-3"><div v-for="n in brushBadges" :key="n" class="card" :style="count<n?'opacity:.42':''"><div class="emoji-lg">🪥</div><strong>{{n}} gange</strong><p class="muted">{{count>=n?'Låst op!':'Ikke endnu'}}</p></div></div></section></main></template>
