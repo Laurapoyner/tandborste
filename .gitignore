@@ -1,5 +1,10 @@
-<template>
-  <NuxtLayout>
-    <NuxtPage />
-  </NuxtLayout>
-</template>
+node_modules/
+.nuxt/
+.output/
+.wrangler/
+.env
+.env.*
+!.env.example
+.vs/
+.vscode/
+.idea/
