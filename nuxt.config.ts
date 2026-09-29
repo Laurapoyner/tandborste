@@ -1,17 +1,25 @@
 import { fileURLToPath } from 'node:url'
 
+const mongoOptionalStub = fileURLToPath(
+  new URL('./server/stubs/mongodb-optional.ts', import.meta.url)
+)
+
 export default defineNuxtConfig({
   ssr: false,
   compatibilityDate: '2026-09-29',
   devtools: { enabled: true },
 
+  // MongoDB Node-driveren indeholder en række valgfrie integrationer.
+  // Tandtid bruger ingen af dem, men Cloudflare/Nitro forsøger ellers
+  // at resolve dem under bundling. Derfor peges de på en tom JS-stub.
   alias: {
-    // MongoDB's Zstandard compression package is a native Node addon.
-    // Tandtid does not use zstd compression, so on Cloudflare Workers
-    // we resolve the optional package to a small non-native stub.
-    '@mongodb-js/zstd': fileURLToPath(
-      new URL('./server/stubs/mongodb-zstd.ts', import.meta.url)
-    )
+    '@mongodb-js/zstd': mongoOptionalStub,
+    'gcp-metadata': mongoOptionalStub,
+    'kerberos': mongoOptionalStub,
+    'mongodb-client-encryption': mongoOptionalStub,
+    'snappy': mongoOptionalStub,
+    'socks': mongoOptionalStub,
+    'aws4': mongoOptionalStub
   },
 
   css: ['~/assets/css/main.css'],
@@ -45,7 +53,12 @@ export default defineNuxtConfig({
   pwa: {
     registerType: 'autoUpdate',
     strategies: 'generateSW',
-    includeAssets: ['apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'],
+    includeAssets: [
+      'apple-touch-icon.png',
+      'icon-192.png',
+      'icon-512.png',
+      'icon-maskable-512.png'
+    ],
     manifest: {
       id: '/',
       name: 'Tandtid',
