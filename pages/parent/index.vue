@@ -2,8 +2,8 @@
 definePageMeta({middleware:'parent'})
 import type { ParentName, Period, BrushingSession } from '~/types'
 
-const {children,rewards,settings,saveConfig,loadRemote,saving,saveError,lastSavedAt}=useTandtidConfig()
-const {sessions,loadLocal,starsFor,dayStreak,completedCount,deleteSession,addManualSession}=useBrushData()
+const {children,rewards,settings,saveConfig,loadRemote,saving,saveError}=useTandtidConfig()
+const {sessions,syncFromServer,starsFor,dayStreak,completedCount,deleteSession,addManualSession,loading:historyLoading}=useBrushData()
 const ledger=useRewardsLedger()
 
 const selected=ref('aya')
@@ -15,6 +15,7 @@ const settingsMessage=ref('')
 const manualMessage=ref('')
 const manualError=ref('')
 const manualOpen=ref(false)
+const refreshing=ref(false)
 const days=[['monday','Mandag'],['tuesday','Tirsdag'],['wednesday','Onsdag'],['thursday','Torsdag'],['friday','Fredag'],['saturday','Lørdag'],['sunday','Søndag']] as const
 
 function localDateString(d = new Date()) {
@@ -33,11 +34,41 @@ const manual=reactive({
   createdByParent: '' as ParentName|''
 })
 
+async function refreshAll(){
+  if(refreshing.value)return
+  refreshing.value=true
+  try{
+    // Hent hele familiens historik i ét kald. Det gør Aya/Ellie ens i forældreområdet.
+    await Promise.all([
+      syncFromServer(),
+      ledger.syncFromServer(),
+      loadRemote()
+    ])
+  }finally{
+    refreshing.value=false
+  }
+}
+
+function handleVisible(){
+  if(document.visibilityState==='visible') refreshAll()
+}
+function handleFocus(){ refreshAll() }
+
 onMounted(async()=>{
-  await Promise.all(children.map(c=>loadLocal(c.id)))
-  await ledger.hydrate()
-  await loadRemote()
+  await refreshAll()
   manual.actualSeconds = settings.value.brushingSeconds
+  window.addEventListener('focus',handleFocus)
+  document.addEventListener('visibilitychange',handleVisible)
+})
+onBeforeUnmount(()=>{
+  window.removeEventListener('focus',handleFocus)
+  document.removeEventListener('visibilitychange',handleVisible)
+})
+
+// Når man skifter barn, hentes det valgte barns historik igen, så seneste børstning
+// fra fx en anden iPad vises med det samme.
+watch(selected, async(childId)=>{
+  await syncFromServer(childId)
 })
 
 const selectedChild=computed(()=>children.find(c=>c.id===selected.value))
@@ -174,7 +205,10 @@ function testLink(period:'morning'|'evening', adult=false, full=false){
     <section class="section card">
       <div class="section-heading">
         <div><h2>🪥 Historik – {{selectedChild?.name}}</h2><p class="muted">MongoDB er fælles historik på alle enheder.</p></div>
-        <button class="btn btn-primary btn-small" @click="manualOpen=!manualOpen">➕ Tilføj tandbørstning</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+          <button class="btn btn-small" :disabled="refreshing" @click="refreshAll">{{refreshing?'Henter…':'↻ Opdater'}}</button>
+          <button class="btn btn-primary btn-small" @click="manualOpen=!manualOpen">➕ Tilføj tandbørstning</button>
+        </div>
       </div>
 
       <div v-if="manualOpen" class="card" style="margin:16px 0;background:#fffaf4">
@@ -193,7 +227,8 @@ function testLink(period:'morning'|'evening', adult=false, full=false){
       </div>
       <p v-if="manualMessage" class="pill status-green">{{manualMessage}}</p>
 
-      <div v-if="!childSessions.length" class="empty-state">Ingen tandbørstninger registreret endnu.</div>
+      <div v-if="historyLoading || refreshing" class="empty-state">Henter {{selectedChild?.name}}s historik…</div>
+      <div v-else-if="!childSessions.length" class="empty-state">Ingen tandbørstninger registreret endnu.</div>
       <div v-else class="mobile-history-list">
         <article v-for="s in childSessions" :key="s.id || s.completedAt" class="history-card">
           <div class="history-card-top">
