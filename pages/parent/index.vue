@@ -79,6 +79,7 @@ const statusText=(s:string)=>s==='completed'?'Gennemført':s==='ended_early'?'Sl
 const statusClass=(s:string)=>s==='completed'?'status-green':s==='ended_early'?'status-yellow':'status-red'
 const spentForSelected=computed(()=>ledger.spentFor(selected.value))
 const visibleStars=computed(()=>starsFor(selected.value, spentForSelected.value))
+const sortedRewards=computed(()=>[...rewards.value].sort((a,b)=>Number(a.cost)-Number(b.cost)||a.title.localeCompare(b.title,'da')))
 
 async function addReward(){
   rewardMessage.value=''
@@ -258,7 +259,7 @@ function testLink(period:'morning'|'evening', adult=false, full=false){
       <div class="section-heading"><div><h2>🎁 Aktive belønninger</h2><p class="muted">Gemmes direkte i MongoDB og vises på børnenes enheder.</p></div><button class="btn btn-small" @click="loadRemote">↻ Hent igen</button></div>
       <p v-if="rewardMessage" class="pill status-green">{{rewardMessage}}</p>
       <p v-if="saveError" class="pill status-red">{{saveError}}</p>
-      <div v-for="r in rewards" :key="r.id" class="reward-admin-row">
+      <div v-for="r in sortedRewards" :key="r.id" class="reward-admin-row">
         <div class="reward-main"><div class="reward-emoji">{{r.emoji}}</div><div><strong>{{r.title}}</strong><div class="muted">{{r.cost}} ⭐</div></div></div>
         <div class="reward-admin-actions"><label class="mini-toggle"><input v-model="r.active" type="checkbox" @change="saveRewards"><span>Aktiv</span></label><button class="btn btn-danger btn-small" @click="removeReward(r.id)">Slet</button></div>
       </div>

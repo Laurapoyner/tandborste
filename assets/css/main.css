@@ -55,3 +55,11 @@ button,input,select{font:inherit}.app-shell{min-height:100vh}.container{max-widt
 .sync-status{position:fixed;right:14px;bottom:14px;z-index:100;padding:10px 14px;border-radius:999px;background:#e9f4ff;color:#22577a;font-size:13px;font-weight:850;box-shadow:0 8px 24px rgba(34,87,122,.18);border:1px solid rgba(34,87,122,.08)}
 .sync-status.offline{background:#fff1bf;color:#755700}
 @media(max-width:760px){.sync-status{left:12px;right:12px;bottom:82px;text-align:center}}
+
+
+/* v16 - reward approval modal */
+.modal-backdrop{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:20px;background:rgba(20,28,36,.56);backdrop-filter:blur(5px)}
+.reward-modal{width:min(520px,100%);max-height:calc(100vh - 40px);overflow:auto;position:relative;padding:26px}
+.modal-close{position:absolute;top:13px;right:13px;width:42px;height:42px;border:0;border-radius:50%;background:#f3f5f7;color:#24313d;font-size:28px;line-height:1;cursor:pointer}
+.reward-modal-heading{display:flex;align-items:center;gap:16px;padding-right:44px;margin-bottom:8px}.reward-modal-heading h2{margin:3px 0 4px}.reward-modal-emoji{font-size:54px}.reward-modal-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:18px}
+@media(max-width:520px){.modal-backdrop{padding:12px}.reward-modal{padding:22px 18px}.reward-modal-actions{grid-template-columns:1fr}.reward-modal-heading{align-items:flex-start}.reward-modal-emoji{font-size:46px}}

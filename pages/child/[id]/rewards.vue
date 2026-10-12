@@ -16,6 +16,7 @@ onMounted(async () => {
 
 const stars = computed(() => { refresh.value; return starsFor(id, ledger.spentFor(id)) })
 const selected = ref<Reward | null>(null)
+const sortedRewards = computed(() => [...rewards.value].filter(r => r.active).sort((a,b) => Number(a.cost) - Number(b.cost) || a.title.localeCompare(b.title, 'da')))
 const pin = ref('')
 const who = ref<ParentName | undefined>()
 const error = ref('')
@@ -25,6 +26,14 @@ const loading = ref(false)
 async function refreshAll(){
   await Promise.all([loadRemote(), loadLocal(id), ledger.syncFromServer()])
   refresh.value++
+}
+
+function closeRedeemModal() {
+  if (loading.value) return
+  selected.value = null
+  pin.value = ''
+  who.value = undefined
+  error.value = ''
 }
 
 async function redeem() {
@@ -62,18 +71,31 @@ async function redeem() {
     <div class="section-heading"><div><h1>🎁 Belønninger</h1><p class="muted">Belønninger hentes fra den fælles database.</p></div><button class="btn btn-small" @click="refreshAll">↻ Opdater</button></div>
     <p v-if="success" class="pill status-green">{{success}}</p>
     <div class="grid">
-      <div v-for="r in rewards.filter(x=>x.active)" :key="r.id" class="card reward">
+      <div v-for="r in sortedRewards" :key="r.id" class="card reward">
         <div class="reward-main"><div class="reward-emoji">{{r.emoji}}</div><div><h2>{{r.title}}</h2><div class="muted">{{r.cost}} ⭐</div></div></div>
         <button class="btn" :class="stars>=r.cost?'btn-success':''" :disabled="stars<r.cost" @click="selected=r">{{stars>=r.cost?'Indløs':`${stars}/${r.cost}`}}</button>
       </div>
     </div>
-    <section v-if="selected" class="card section">
-      <h2>Forælder skal godkende</h2>
-      <p>{{selected.emoji}} {{selected.title}} · {{selected.cost}} ⭐</p>
-      <div class="grid grid-2"><button class="btn" :class="who==='Mor'?'btn-success':''" @click="who='Mor'">👩 Mor</button><button class="btn" :class="who==='Far'?'btn-success':''" @click="who='Far'">👨 Far</button></div>
-      <div class="form-row"><label>Forældre-PIN</label><input v-model="pin" class="input" type="password" inputmode="numeric"></div>
-      <p v-if="error" class="pill status-red">{{error}}</p>
-      <button class="btn btn-primary btn-wide" :disabled="loading" @click="redeem">{{loading?'Godkender…':'Godkend indløsning'}}</button>
-    </section>
+    <div v-if="selected" class="modal-backdrop" @click.self="closeRedeemModal">
+      <section class="card reward-modal" role="dialog" aria-modal="true" aria-labelledby="reward-modal-title">
+        <button class="modal-close" type="button" aria-label="Luk" :disabled="loading" @click="closeRedeemModal">×</button>
+        <div class="reward-modal-heading">
+          <div class="reward-emoji reward-modal-emoji">{{selected.emoji}}</div>
+          <div>
+            <div class="eyebrow">Forælder skal godkende</div>
+            <h2 id="reward-modal-title">{{selected.title}}</h2>
+            <strong>{{selected.cost}} ⭐</strong>
+          </div>
+        </div>
+        <p class="muted">Vælg hvem der godkender belønningen, og indtast forældre-PIN.</p>
+        <div class="grid grid-2"><button class="btn" :class="who==='Mor'?'btn-success':''" @click="who='Mor'">👩 Mor</button><button class="btn" :class="who==='Far'?'btn-success':''" @click="who='Far'">👨 Far</button></div>
+        <div class="form-row"><label>Forældre-PIN</label><input v-model="pin" class="input" type="password" inputmode="numeric" autocomplete="off" @keyup.enter="redeem"></div>
+        <p v-if="error" class="pill status-red">{{error}}</p>
+        <div class="reward-modal-actions">
+          <button class="btn" type="button" :disabled="loading" @click="closeRedeemModal">Annuller</button>
+          <button class="btn btn-primary" :disabled="loading" @click="redeem">{{loading?'Godkender…':'Godkend indløsning'}}</button>
+        </div>
+      </section>
+    </div>
   </main>
 </template>
