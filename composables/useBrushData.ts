@@ -42,7 +42,19 @@ export const useBrushData = () => {
       throw new Error('Ingen internetforbindelse – tandbørstningen blev ikke gemt.')
     }
     const payload = { ...session, id: session.id || crypto.randomUUID() }
-    const result = await $fetch<any>('/api/sessions', { method: 'POST', body: payload })
+
+    let result: any
+    try {
+      result = await $fetch<any>('/api/sessions', { method: 'POST', body: payload })
+    } catch (error: any) {
+      // iOS/PWA kan af og til fejle på første request lige efter appen vågner.
+      // Retry kun ved netværksfejl/no-response – ikke ved rigtige 4xx/5xx svar.
+      const hasHttpResponse = Boolean(error?.response?.status || error?.statusCode || error?.status)
+      if (hasHttpResponse) throw error
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      result = await $fetch<any>('/api/sessions', { method: 'POST', body: payload })
+    }
+
     const saved = normalizeSession(result?.session || { ...payload, starsEarned: result?.starsEarned ?? payload.starsEarned })
     const idx = sessions.value.findIndex(s => s.id === saved.id)
     if (idx >= 0) sessions.value[idx] = saved

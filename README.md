@@ -145,3 +145,9 @@ Det betyder:
 
 ## v15 – lokal tid uden polling
 Barnets startskærm bruger enhedens lokale tid. Den tjekker ved åbning/fokus og sætter kun én timer til næste relevante skift mellem morgen, neutral periode og aften. Der køres ikke længere et 30-sekunders interval.
+
+
+## v17
+- Streak-kortet viser altid den næste milepæl over den aktuelle streak (fx 16 dage -> Næste streak: 30 dage).
+- Streak-badges udvidet med 180 og 365 dage.
+- Gemning af tandbørstning prøver automatisk én gang igen efter 1,5 sek. ved netværks/no-response-fejl. Samme session-id genbruges, så retry ikke giver dubletter.

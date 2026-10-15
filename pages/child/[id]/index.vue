@@ -95,6 +95,8 @@ onBeforeUnmount(()=>{
 const stars = computed(()=>starsFor(id, ledger.spentFor(id)))
 const streak = computed(()=>dayStreak(id))
 const completed = computed(()=>completedCount(id))
+const streakMilestones = [3, 7, 14, 30, 60, 100, 180, 365]
+const nextStreak = computed(() => streakMilestones.find(n => n > streak.value) ?? null)
 const period = computed(()=>currentPeriod(now.value))
 const periodLabel = computed(()=>period.value==='morning'?'morgen':period.value==='evening'?'aften':'tandbørstning')
 const greeting = computed(()=>period.value==='morning'?'Godmorgen':period.value==='evening'?'Godaften':'Hej')
@@ -122,7 +124,7 @@ function startBrushing(){
   </section>
   <section class="grid grid-2 section">
     <NuxtLink class="card link" :to="`/child/${id}/rewards`">🎁 <strong>Mine belønninger</strong><p class="muted">Se hvad du kan spare op til.</p></NuxtLink>
-    <NuxtLink class="card link" :to="`/child/${id}/badges`"><div class="emoji-lg">🏆</div><strong>Badges</strong><p class="muted">Næste mål: {{ streak < 3 ? '3 dage i træk' : streak < 7 ? '7 dage i træk' : '14 dage i træk' }}</p></NuxtLink>
+    <NuxtLink class="card link" :to="`/child/${id}/badges`"><div class="emoji-lg">🏆</div><strong>Badges</strong><p class="muted">{{ nextStreak ? `Næste streak: ${nextStreak} dage` : 'Alle streak-badges låst op!' }}</p></NuxtLink>
   </section>
 </main>
 </template>
