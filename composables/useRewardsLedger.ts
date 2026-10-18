@@ -42,5 +42,11 @@ export const useRewardsLedger = () => {
     return redemption
   }
 
-  return { redemptions, hydrate, syncFromServer, spentFor, redeem, loading }
+  const undoRedemption = async (redemption: Redemption) => {
+    if (!redemption?.id) return
+    await $fetch(`/api/redemptions/${encodeURIComponent(redemption.id)}`, { method: 'DELETE' })
+    redemptions.value = redemptions.value.filter(r => r.id !== redemption.id)
+  }
+
+  return { redemptions, hydrate, syncFromServer, spentFor, redeem, undoRedemption, loading }
 }

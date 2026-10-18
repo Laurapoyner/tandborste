@@ -10,6 +10,7 @@ const selected=ref('aya')
 const activeTab=ref<'overview'|'history'|'rewards'|'settings'>('overview')
 const newReward=reactive({title:'',emoji:'🎁',cost:100})
 const deletingSessionId=ref<string|null>(null)
+const undoingRedemptionId=ref<string|null>(null)
 const rewardMessage=ref('')
 const settingsMessage=ref('')
 const manualMessage=ref('')
@@ -116,6 +117,23 @@ function formatTime(s:BrushingSession){
   return new Intl.DateTimeFormat('da-DK',{hour:'2-digit',minute:'2-digit'}).format(new Date(value))
 }
 function childName(id:string){return children.find(c=>c.id===id)?.name || id}
+
+async function undoRewardRedemption(redemption:any){
+  if(!redemption?.id)return
+  const name=childName(redemption.childId)
+  const ok=confirm(`Fortryd ${name}s indløsning af “${redemption.rewardTitle}”? ${redemption.cost} stjerner bliver lagt tilbage.`)
+  if(!ok)return
+  undoingRedemptionId.value=redemption.id
+  rewardMessage.value=''
+  try{
+    await ledger.undoRedemption(redemption)
+    rewardMessage.value=`${redemption.cost} ⭐ er lagt tilbage til ${name}.`
+  }catch(error:any){
+    rewardMessage.value=error?.data?.message || error?.message || 'Kunne ikke fortryde belønningen.'
+  }finally{
+    undoingRedemptionId.value=null
+  }
+}
 
 async function removeBrushing(session:any){
   if(!session?.id)return
@@ -277,7 +295,13 @@ function testLink(period:'morning'|'evening', adult=false, full=false){
       <div v-else class="redemption-list">
         <article v-for="r in allRedemptions" :key="r.id" class="redemption-card">
           <div class="reward-main"><div class="reward-emoji">{{r.rewardEmoji}}</div><div><strong>{{r.rewardTitle}}</strong><div class="muted">{{childName(r.childId)}} · {{formatDateTime(r.createdAt)}}</div></div></div>
-          <div class="redemption-meta"><strong>−{{r.cost}} ⭐</strong><span class="muted">Godkendt af {{r.approvedBy}}</span></div>
+          <div class="redemption-meta">
+            <strong>−{{r.cost}} ⭐</strong>
+            <span class="muted">Godkendt af {{r.approvedBy}}</span>
+            <button class="btn btn-small" :disabled="undoingRedemptionId===r.id" @click="undoRewardRedemption(r)">
+              {{ undoingRedemptionId===r.id ? 'Fortryder…' : '↩ Fortryd brug' }}
+            </button>
+          </div>
         </article>
       </div>
     </section>
