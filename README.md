@@ -161,3 +161,6 @@ Patchen opretter lokale placeholders for MongoDB-driverens valgfrie integratione
 (bl.a. `@aws-sdk/credential-providers`), så Nitro kan bundle Worker-koden uden at
 kræve pakker, Tandtid ikke bruger. Den eksisterende `node:crypto` SCRAM-patch er
 stadig med og er idempotent.
+
+## v20 – Engangsbelønninger
+Under Forældre → Belønninger kan en forælder oprette og bruge en engangsbelønning for det valgte barn. Belønningen gemmes kun som en indløsning i historikken og bliver ikke føjet til den permanente belønningsliste. Den kan fortrydes ligesom andre indløsninger.

@@ -42,11 +42,28 @@ export const useRewardsLedger = () => {
     return redemption
   }
 
+  const redeemOneTime = async (childId: string, title: string, cost: number, approvedBy: ParentName, emoji = '🎟️') => {
+    const redemption: Redemption = {
+      id: crypto.randomUUID(),
+      childId,
+      rewardId: `one-time:${crypto.randomUUID()}`,
+      rewardTitle: title.trim(),
+      rewardEmoji: emoji || '🎟️',
+      cost: Number(cost),
+      approvedBy,
+      createdAt: new Date().toISOString(),
+      oneTime: true
+    }
+    await $fetch('/api/redemptions', { method: 'POST', body: redemption })
+    redemptions.value.push(redemption)
+    return redemption
+  }
+
   const undoRedemption = async (redemption: Redemption) => {
     if (!redemption?.id) return
     await $fetch(`/api/redemptions/${encodeURIComponent(redemption.id)}`, { method: 'DELETE' })
     redemptions.value = redemptions.value.filter(r => r.id !== redemption.id)
   }
 
-  return { redemptions, hydrate, syncFromServer, spentFor, redeem, undoRedemption, loading }
+  return { redemptions, hydrate, syncFromServer, spentFor, redeem, redeemOneTime, undoRedemption, loading }
 }

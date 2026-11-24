@@ -45,4 +45,5 @@ export interface Redemption {
   cost: number
   approvedBy: ParentName
   createdAt: string
+  oneTime?: boolean
 }

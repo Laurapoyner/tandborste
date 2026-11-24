@@ -9,6 +9,8 @@ const ledger=useRewardsLedger()
 const selected=ref('aya')
 const activeTab=ref<'overview'|'history'|'rewards'|'settings'>('overview')
 const newReward=reactive({title:'',emoji:'🎁',cost:100})
+const oneTimeReward=reactive({title:'',emoji:'🎟️',cost:10,approvedBy:'' as ParentName|''})
+const creatingOneTimeReward=ref(false)
 const deletingSessionId=ref<string|null>(null)
 const undoingRedemptionId=ref<string|null>(null)
 const rewardMessage=ref('')
@@ -103,6 +105,28 @@ async function removeReward(id:string){
 }
 async function saveRewards(){
   if(await saveConfig()) rewardMessage.value='Belønninger gemt ✓'
+}
+async function redeemOneTimeReward(){
+  rewardMessage.value=''
+  const title=oneTimeReward.title.trim()
+  const cost=Number(oneTimeReward.cost)
+  if(!title){rewardMessage.value='Skriv hvad engangsbelønningen er.';return}
+  if(!Number.isFinite(cost) || cost<=0){rewardMessage.value='Prisen skal være mindst 1 stjerne.';return}
+  if(!oneTimeReward.approvedBy){rewardMessage.value='Vælg Mor eller Far.';return}
+  if(visibleStars.value < cost){rewardMessage.value=`${selectedChild.value?.name || 'Barnet'} har kun ${visibleStars.value} ⭐.`;return}
+  creatingOneTimeReward.value=true
+  try{
+    await ledger.redeemOneTime(selected.value,title,cost,oneTimeReward.approvedBy,oneTimeReward.emoji || '🎟️')
+    rewardMessage.value=`Engangsbelønningen er brugt af ${selectedChild.value?.name}. −${cost} ⭐`
+    oneTimeReward.title=''
+    oneTimeReward.emoji='🎟️'
+    oneTimeReward.cost=10
+    oneTimeReward.approvedBy=''
+  }catch(error:any){
+    rewardMessage.value=error?.data?.message || error?.message || 'Kunne ikke gemme engangsbelønningen.'
+  }finally{
+    creatingOneTimeReward.value=false
+  }
 }
 async function saveSettings(){
   if(await saveConfig()) settingsMessage.value='Indstillinger gemt ✓'
@@ -281,6 +305,19 @@ function testLink(period:'morning'|'evening', adult=false, full=false){
         <div class="reward-main"><div class="reward-emoji">{{r.emoji}}</div><div><strong>{{r.title}}</strong><div class="muted">{{r.cost}} ⭐</div></div></div>
         <div class="reward-admin-actions"><label class="mini-toggle"><input v-model="r.active" type="checkbox" @change="saveRewards"><span>Aktiv</span></label><button class="btn btn-danger btn-small" @click="removeReward(r.id)">Slet</button></div>
       </div>
+      <div class="reward-create" style="margin-bottom:18px;background:#fffaf4">
+        <h3>🎟️ Engangsbelønning til {{selectedChild?.name}}</h3>
+        <p class="muted">Brug den til en aftale, der kun gælder denne ene gang. Den trækkes fra stjernerne og gemmes kun som en indløsning – ikke som en fast belønning.</p>
+        <div class="form-row"><label>Hvad bruges stjernerne på?</label><input v-model="oneTimeReward.title" class="input" placeholder="Fx vælge aftensmad i dag"></div>
+        <div class="reward-create-grid">
+          <div class="form-row"><label>Emoji</label><input v-model="oneTimeReward.emoji" class="input" placeholder="🎟️"></div>
+          <div class="form-row"><label>Pris i stjerner</label><input v-model.number="oneTimeReward.cost" class="input" type="number" min="1"></div>
+        </div>
+        <div class="form-row"><label>Godkendt af</label><select v-model="oneTimeReward.approvedBy" class="input"><option value="">Vælg</option><option value="Mor">Mor</option><option value="Far">Far</option></select></div>
+        <div class="muted" style="margin-bottom:10px">{{selectedChild?.name}} har {{visibleStars}} ⭐ til rådighed.</div>
+        <button class="btn btn-primary" :disabled="creatingOneTimeReward" @click="redeemOneTimeReward">{{creatingOneTimeReward?'Gemmer…':'Brug engangsbelønning'}}</button>
+      </div>
+
       <div class="reward-create">
         <h3>Opret ny belønning</h3>
         <div class="form-row"><label>Navn</label><input v-model="newReward.title" class="input" placeholder="Fx vælge aftensmad"></div>
@@ -294,7 +331,7 @@ function testLink(period:'morning'|'evening', adult=false, full=false){
       <div v-if="!allRedemptions.length" class="empty-state">Der er endnu ikke indløst nogen belønninger.</div>
       <div v-else class="redemption-list">
         <article v-for="r in allRedemptions" :key="r.id" class="redemption-card">
-          <div class="reward-main"><div class="reward-emoji">{{r.rewardEmoji}}</div><div><strong>{{r.rewardTitle}}</strong><div class="muted">{{childName(r.childId)}} · {{formatDateTime(r.createdAt)}}</div></div></div>
+          <div class="reward-main"><div class="reward-emoji">{{r.rewardEmoji}}</div><div><strong>{{r.rewardTitle}}</strong><span v-if="r.oneTime" class="pill" style="margin-left:8px">Engangsbelønning</span><div class="muted">{{childName(r.childId)}} · {{formatDateTime(r.createdAt)}}</div></div></div>
           <div class="redemption-meta">
             <strong>−{{r.cost}} ⭐</strong>
             <span class="muted">Godkendt af {{r.approvedBy}}</span>
